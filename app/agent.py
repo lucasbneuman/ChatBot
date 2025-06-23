@@ -7,6 +7,7 @@ from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_openai import ChatOpenAI
 
+
 # Cargar variables de entorno
 load_dotenv()
 
@@ -35,7 +36,7 @@ class ChatAgent:
         self.State = State
         
         # Inicializar modelo
-        self.llm = ChatOpenAI(model="gpt-4o", temperature=0.7, max_tokens=200)
+        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, max_tokens=100)
         
         # Construcción del grafo
         builder = StateGraph(State)
@@ -43,11 +44,8 @@ class ChatAgent:
         builder.set_entry_point("chatbot")
         builder.set_finish_point("chatbot")
         
-        # Persistencia de memoria
-        memory = MemorySaver()
-        
-        # Compilar el grafo
-        self.graph = builder.compile(checkpointer=memory)
+        self.graph = builder.compile()
+
     
     def _chatbot_node(self, state):
         """Nodo principal del grafo"""
@@ -68,6 +66,11 @@ class ChatAgent:
         except Exception as e:
             print(f"Error en chat: {e}")
             return f"Error: {str(e)}"
+        
+# Crear una instancia del agente y obtener el grafo
+agent_instance = ChatAgent()
+graph = agent_instance.graph
+
 
 """ Si ANDA
 import os
