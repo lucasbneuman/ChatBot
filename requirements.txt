@@ -1,0 +1,16 @@
+langgraph
+langgraph-cli[inmem]
+python-dotenv
+ipywidgets
+requests
+numpy
+openai
+gradio
+langchain
+tiktoken
+langchain-openai
+langchain_experimental
+langchain_chroma
+langchain[docarray]
+datasets
+chromadb
