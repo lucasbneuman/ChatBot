@@ -21,10 +21,11 @@ class ProspectingState:
         self.response: str = ""
         self.should_end: bool = False
         self.qualification_complete: bool = False
+        self.meeting_link_sent: bool = False
 
 class ProspectingAgent:
     def __init__(self, openai_api_key: str, db_path: str = "prospects.db"):
-        self.llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4o", temperature=0.3)
+        self.llm = ChatOpenAI(api_key=openai_api_key, model="gpt-4o-mini", temperature=0.3,max_tokens=150)
         self.db = ProspectDatabase(db_path)
         self.parser = MessageParser(self.llm)
         self.extractor = DataExtractor(self.db)
@@ -39,130 +40,214 @@ class ProspectingAgent:
         
         def receive_message(state: Dict[str, Any]) -> Dict[str, Any]:
             """Nodo: Recibe y procesa el mensaje inicial"""
-            message = state.get("current_message", "")
-            prospect_id = state.get("prospect_id")
-            
-            # Si no hay prospect_id, crear uno nuevo
-            if not prospect_id:
-                prospect = Prospect()
-                prospect_id = self.db.create_prospect(prospect)
-                state["prospect_id"] = prospect_id
-            
-            # Agregar mensaje al historial
-            self.db.add_conversation_message(prospect_id, message, "user")
-            
-            # Obtener historial de conversación
-            conversation_history = self.db.get_conversation_history(prospect_id)
-            state["conversation_history"] = conversation_history
-            
-            return state
+            try:
+                message = state.get("current_message", "")
+                prospect_id = state.get("prospect_id")
+                
+                # Si no hay prospect_id, crear uno nuevo
+                if not prospect_id:
+                    prospect = Prospect()
+                    prospect_id = self.db.create_prospect(prospect)
+                    state["prospect_id"] = prospect_id
+                
+                # Verificar que las funciones de DB existen antes de usarlas
+                if hasattr(self.db, 'add_conversation_message'):
+                    self.db.add_conversation_message(prospect_id, message, "user")
+                
+                # Obtener historial de conversación
+                if hasattr(self.db, 'get_conversation_history'):
+                    conversation_history = self.db.get_conversation_history(prospect_id)
+                else:
+                    conversation_history = []
+                
+                state["conversation_history"] = conversation_history
+                
+                # Verificar si ya se envió el link
+                prospect = self.db.get_prospect(prospect_id)
+                if prospect and hasattr(prospect, 'meeting_link_sent'):
+                    state["meeting_link_sent"] = prospect.meeting_link_sent or False
+                else:
+                    state["meeting_link_sent"] = False
+                
+                return state
+                
+            except Exception as e:
+                print(f"Error en receive_message: {e}")
+                state["conversation_history"] = []
+                state["meeting_link_sent"] = False
+                return state
         
         def classify_intent(state: Dict[str, Any]) -> Dict[str, Any]:
             """Nodo: Clasifica la intención del mensaje"""
-            message = state["current_message"]
-            history = state["conversation_history"]
-            
-            intent = self.parser.classify_intent(message, history)
-            state["intent"] = intent
-            
+            try:
+                message = state["current_message"]
+                history = state.get("conversation_history", [])
+                
+                intent = self.parser.classify_intent(message, history)
+                state["intent"] = intent
+                
+            except Exception as e:
+                print(f"Error en classify_intent: {e}")
+                state["intent"] = "GREETING"  # Default fallback
+                
             return state
         
         def extract_data(state: Dict[str, Any]) -> Dict[str, Any]:
             """Nodo: Extrae datos del mensaje"""
-            message = state["current_message"]
-            
-            extracted_data = self.parser.extract_entities(message)
-            state["extracted_data"] = extracted_data
-            
-            # Actualizar prospecto en base de datos
-            if state["prospect_id"]:
-                self.extractor.update_prospect_data(state["prospect_id"], extracted_data)
+            try:
+                message = state["current_message"]
+                history = state.get("conversation_history", [])
+                
+                # Crear contexto de conversación para mejor extracción
+                context = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in history[-3:]])
+                
+                extracted_data = self.parser.extract_entities(message, context)
+                state["extracted_data"] = extracted_data
+                
+                # Actualizar prospecto en base de datos
+                if state.get("prospect_id"):
+                    self.extractor.update_prospect_data(state["prospect_id"], extracted_data)
+                    
+            except Exception as e:
+                print(f"Error en extract_data: {e}")
+                state["extracted_data"] = {}
             
             return state
         
         def check_qualification(state: Dict[str, Any]) -> Dict[str, Any]:
             """Nodo: Verifica si el prospecto está calificado"""
-            prospect_id = state["prospect_id"]
-            prospect = self.db.get_prospect(prospect_id)
-            
-            if prospect:
-                state["qualification_complete"] = self.extractor.is_qualified(prospect)
+            try:
+                prospect_id = state.get("prospect_id")
+                prospect = self.db.get_prospect(prospect_id) if prospect_id else None
                 
-                # Actualizar estado del prospecto
-                if state["qualification_complete"]:
-                    prospect.status = LeadStatus.QUALIFIED.value
-                    self.db.update_prospect(prospect)
+                if prospect:
+                    state["qualification_complete"] = self.extractor.is_qualified(prospect)
+                    
+                    # Actualizar estado del prospecto
+                    if state["qualification_complete"] and not getattr(prospect, 'meeting_link_sent', False):
+                        prospect.status = LeadStatus.QUALIFIED.value
+                        self.db.update_prospect(prospect)
+                else:
+                    state["qualification_complete"] = False
+                    
+            except Exception as e:
+                print(f"Error en check_qualification: {e}")
+                state["qualification_complete"] = False
             
             return state
         
         def generate_response(state: Dict[str, Any]) -> Dict[str, Any]:
             """Nodo: Genera la respuesta apropiada"""
-            intent = state["intent"]
-            prospect_id = state["prospect_id"]
-            history = state["conversation_history"]
-            
-            # Obtener datos del prospecto
-            prospect = self.db.get_prospect(prospect_id)
-            prospect_data = prospect.to_dict() if prospect else {}
-            
-            # Identificar información faltante
-            missing_info = []
-            if not prospect_data.get('name'): missing_info.append('nombre')
-            if not prospect_data.get('company'): missing_info.append('empresa')
-            if not prospect_data.get('budget'): missing_info.append('presupuesto')
-            if not prospect_data.get('location'): missing_info.append('ubicación')
-            if not prospect_data.get('industry'): missing_info.append('industria')
-            
-            # Generar respuesta
-            response = self.response_gen.generate_response(intent, prospect_data, history, missing_info)
-            state["response"] = response
-            
-            # Agregar respuesta al historial
-            self.db.add_conversation_message(prospect_id, response, "assistant")
+            try:
+                intent = state.get("intent", "GREETING")
+                prospect_id = state.get("prospect_id")
+                history = state.get("conversation_history", [])
+                meeting_link_sent = state.get("meeting_link_sent", False)
+                
+                # Obtener datos del prospecto
+                prospect = self.db.get_prospect(prospect_id) if prospect_id else None
+                prospect_data = prospect.to_dict() if prospect else {}
+                
+                # Identificar información faltante (solo si no se envió el link)
+                missing_info = []
+                if not meeting_link_sent:
+                    if not prospect_data.get('name'): missing_info.append('nombre')
+                    if not prospect_data.get('company'): missing_info.append('empresa')
+                    if not prospect_data.get('location'): missing_info.append('ubicación')
+                    if not prospect_data.get('industry'): missing_info.append('industria')
+                
+                # Generar respuesta
+                response = self.response_gen.generate_response(intent, prospect_data, history, missing_info)
+                state["response"] = response
+                
+                # Agregar respuesta al historial
+                if hasattr(self.db, 'add_conversation_message') and prospect_id:
+                    self.db.add_conversation_message(prospect_id, response, "assistant")
+                
+            except Exception as e:
+                print(f"Error en generate_response: {e}")
+                state["response"] = "¡Hola! ¿Cómo estás? ¿En qué puedo ayudarte hoy?"
             
             return state
         
         def decide_next_action(state: Dict[str, Any]) -> str:
             """Nodo de decisión: Determina la siguiente acción"""
-            intent = state["intent"]
-            qualification_complete = state.get("qualification_complete", False)
-            
-            if intent == "REJECTION" or intent == "CLOSING":
-                return "end_conversation"
-            elif qualification_complete:
-                return "send_meeting_link"
-            else:
+            try:
+                intent = state.get("intent", "GREETING")
+                qualification_complete = state.get("qualification_complete", False)
+                meeting_link_sent = state.get("meeting_link_sent", False)
+                prospect_id = state.get("prospect_id")
+                
+                # Si ya se envió el link, continuar conversación
+                if meeting_link_sent:
+                    if intent == "REJECTION" or intent == "CLOSING":
+                        return "end_conversation"
+                    else:
+                        return "continue_conversation"
+                
+                # Si no se ha enviado el link pero está calificado
+                if qualification_complete and not meeting_link_sent and prospect_id:
+                    prospect = self.db.get_prospect(prospect_id)
+                    if prospect and self.extractor.should_send_meeting_link(prospect):
+                        return "send_meeting_link"
+                
+                # Casos de finalización
+                if intent == "REJECTION" or intent == "CLOSING":
+                    return "end_conversation"
+                
+                # Continuar conversación normal
+                return "continue_conversation"
+                
+            except Exception as e:
+                print(f"Error en decide_next_action: {e}")
                 return "continue_conversation"
         
         def send_meeting_link(state: Dict[str, Any]) -> Dict[str, Any]:
             """Nodo: Envía link de reunión para leads calificados"""
-            prospect_id = state["prospect_id"]
-            
-            # Aquí integrarías con Brevo para enviar el link
-            meeting_message = """
-            ¡Excelente! Basándome en nuestra conversación, creo que podemos ayudarte.
-            
-            Te voy a enviar un enlace para que puedas agendar una reunión con nuestro equipo:
-            [LINK DE BREVO AQUÍ]
-            
-            ¿Hay algún horario que te convenga más?
-            """
-            
-            state["response"] = meeting_message
-            self.db.add_conversation_message(prospect_id, meeting_message, "assistant")
-            
+            try:
+                prospect_id = state.get("prospect_id")
+                prospect = self.db.get_prospect(prospect_id) if prospect_id else None
+                
+                # Generar mensaje personalizado con link de Brevo
+                meeting_message = self.response_gen.generate_meeting_link_message(
+                    prospect.name if prospect else None
+                )
+                
+                state["response"] = meeting_message
+                
+                if hasattr(self.db, 'add_conversation_message') and prospect_id:
+                    self.db.add_conversation_message(prospect_id, meeting_message, "assistant")
+                
+                # Marcar que se envió el link
+                if prospect:
+                    prospect.meeting_link_sent = True
+                    prospect.status = LeadStatus.MEETING_SENT.value
+                    self.db.update_prospect(prospect)
+                
+                state["meeting_link_sent"] = True
+                
+            except Exception as e:
+                print(f"Error en send_meeting_link: {e}")
+                state["response"] = "¡Excelente! Te enviaré la información para agendar una reunión."
+                
             return state
         
         def end_conversation(state: Dict[str, Any]) -> Dict[str, Any]:
             """Nodo: Finaliza la conversación"""
-            prospect_id = state["prospect_id"]
-            prospect = self.db.get_prospect(prospect_id)
-            
-            if prospect:
-                prospect.status = LeadStatus.CLOSED.value
-                self.db.update_prospect(prospect)
-            
-            state["should_end"] = True
+            try:
+                prospect_id = state.get("prospect_id")
+                prospect = self.db.get_prospect(prospect_id) if prospect_id else None
+                
+                if prospect:
+                    prospect.status = LeadStatus.CLOSED.value
+                    self.db.update_prospect(prospect)
+                
+                state["should_end"] = True
+                
+            except Exception as e:
+                print(f"Error en end_conversation: {e}")
+                state["should_end"] = True
+                
             return state
         
         # Crear el grafo
@@ -185,7 +270,7 @@ class ProspectingAgent:
         workflow.add_edge("extract_data", "check_qualification")
         workflow.add_edge("check_qualification", "generate_response")
         
-        # Nodo condicional
+        # Nodo condicional mejorado
         workflow.add_conditional_edges(
             "generate_response",
             decide_next_action,
@@ -196,6 +281,7 @@ class ProspectingAgent:
             }
         )
         
+        # El link de reunión NO termina la conversación
         workflow.add_edge("send_meeting_link", END)
         workflow.add_edge("end_conversation", END)
         
@@ -203,35 +289,103 @@ class ProspectingAgent:
     
     def process_message(self, message: str, prospect_id: Optional[int] = None) -> Dict[str, Any]:
         """Procesa un mensaje y devuelve la respuesta"""
-        initial_state = {
-            "current_message": message,
-            "prospect_id": prospect_id,
-            "conversation_history": [],
-            "intent": "",
-            "extracted_data": {},
-            "response": "",
-            "should_end": False,
-            "qualification_complete": False
-        }
-        
-        # Ejecutar el grafo
-        config = {"configurable": {"thread_id": str(prospect_id or "new")}}
-        result = self.graph.invoke(initial_state, config)
-        
-        return result
+        try:
+            initial_state = {
+                "current_message": message,
+                "prospect_id": prospect_id,
+                "conversation_history": [],
+                "intent": "",
+                "extracted_data": {},
+                "response": "",
+                "should_end": False,
+                "qualification_complete": False,
+                "meeting_link_sent": False
+            }
+            
+            # Ejecutar el grafo
+            config = {"configurable": {"thread_id": str(prospect_id or "new")}}
+            result = self.graph.invoke(initial_state, config)
+            
+            return result
+            
+        except Exception as e:
+            print(f"Error en process_message: {e}")
+            # Fallback response
+            return {
+                "current_message": message,
+                "prospect_id": prospect_id,
+                "response": "¡Hola! Disculpa, tuve un pequeño problema técnico. ¿Podrías repetir tu mensaje?",
+                "intent": "ERROR",
+                "should_end": False
+            }
     
     def get_prospect_summary(self, prospect_id: int) -> Dict[str, Any]:
-        """Obtiene un resumen del prospecto"""
-        prospect = self.db.get_prospect(prospect_id)
-        if not prospect:
-            return {}
-        
-        conversation_history = self.db.get_conversation_history(prospect_id)
-        qualification_summary = self.response_gen.generate_qualification_summary(prospect.to_dict())
-        
-        return {
-            "prospect": prospect.to_dict(),
-            "conversation_count": len(conversation_history),
-            "qualification_summary": qualification_summary,
-            "last_interaction": conversation_history[-1] if conversation_history else None
-        }
+        """Obtiene un resumen del prospecto - VERSIÓN CORREGIDA"""
+        try:
+            print(f"🔍 DEBUG - Buscando prospect_id: {prospect_id}")
+            
+            prospect = self.db.get_prospect(prospect_id)
+            if not prospect:
+                print(f"❌ DEBUG - No se encontró prospect con ID: {prospect_id}")
+                return {"error": "Prospect not found"}
+            
+            print(f"✅ DEBUG - Prospect encontrado: {prospect.name}, {prospect.company}")
+            print(f"📊 DEBUG - Score raw del DB: {prospect.qualification_score} (tipo: {type(prospect.qualification_score)})")
+            
+            # Obtener historial de conversación si la función existe
+            conversation_history = []
+            try:
+                if hasattr(self.db, 'get_conversation_history'):
+                    conversation_history = self.db.get_conversation_history(prospect_id)
+                    print(f"📚 DEBUG - Conversaciones encontradas: {len(conversation_history)}")
+                else:
+                    print("⚠️ DEBUG - get_conversation_history no disponible")
+            except Exception as e:
+                print(f"⚠️ DEBUG - Error obteniendo conversaciones: {e}")
+                conversation_history = []
+            
+            # Arreglar el score antes de procesar
+            score = prospect.qualification_score
+            if score is None:
+                score = 0
+            elif isinstance(score, str):
+                try:
+                    score = int(float(score))
+                except:
+                    score = 0
+            else:
+                score = int(score)
+            
+            # Actualizar el prospect con el score corregido
+            prospect.qualification_score = score
+            
+            # Generar resumen de calificación
+            try:
+                if score >= 80:
+                    qualification_summary = "🟢 Lead altamente calificado - Programar reunión inmediatamente"
+                elif score >= 60:
+                    qualification_summary = "🟡 Lead calificado - Continuar nutrición y programar reunión"
+                elif score >= 40:
+                    qualification_summary = "🟠 Lead parcialmente calificado - Requiere más información"
+                else:
+                    qualification_summary = "🔴 Lead no calificado - Considerar descarte o nurturing a largo plazo"
+            except Exception as e:
+                print(f"⚠️ DEBUG - Error generando qualification_summary: {e}")
+                qualification_summary = "❓ Error al calcular calificación"
+            
+            # Construir resultado
+            result = {
+                "prospect": prospect.to_dict(),
+                "conversation_count": len(conversation_history),
+                "qualification_summary": qualification_summary,
+                "last_interaction": conversation_history[-1] if conversation_history else None
+            }
+            
+            print(f"📊 DEBUG - Summary generado correctamente para {prospect.name} con score {score}")
+            return result
+            
+        except Exception as e:
+            print(f"❌ ERROR en get_prospect_summary: {e}")
+            import traceback
+            print(f"📍 Traceback: {traceback.format_exc()}")
+            return {"error": str(e)}

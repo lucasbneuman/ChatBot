@@ -1,6 +1,6 @@
 import gradio as gr
 import uuid
-from agent import ChatAgent
+from app.agents.prospecting_agent import ChatAgent
 
 class ChatInterface:
     def __init__(self):

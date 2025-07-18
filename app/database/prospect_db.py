@@ -12,6 +12,7 @@ class LeadStatus(Enum):
     QUALIFIED = "qualified"
     DISQUALIFIED = "disqualified"
     CLOSED = "closed"
+    MEETING_SENT = "meeting_sent"  # Nuevo estado
 
 @dataclass
 class Prospect:
@@ -21,9 +22,11 @@ class Prospect:
     budget: Optional[str] = None
     location: Optional[str] = None
     industry: Optional[str] = None
+    notes: Optional[str] = None  # NUEVO CAMPO
     status: str = LeadStatus.NEW.value
     qualification_score: int = 0
     meeting_date: Optional[str] = None
+    meeting_link_sent: bool = False  # NUEVO CAMPO
     brevo_contact_id: Optional[str] = None
     conversation_history: str = "[]"
     created_at: Optional[str] = None
@@ -42,23 +45,42 @@ class ProspectDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS prospects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                company TEXT,
-                budget TEXT,
-                location TEXT,
-                industry TEXT,
-                status TEXT DEFAULT 'new',
-                qualification_score INTEGER DEFAULT 0,
-                meeting_date TEXT,
-                brevo_contact_id TEXT,
-                conversation_history TEXT DEFAULT '[]',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        # Verificar si la tabla ya existe
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='prospects'")
+        table_exists = cursor.fetchone()
+        
+        if not table_exists:
+            # Crear tabla nueva
+            cursor.execute('''
+                CREATE TABLE prospects (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT,
+                    company TEXT,
+                    budget TEXT,
+                    location TEXT,
+                    industry TEXT,
+                    notes TEXT,
+                    status TEXT DEFAULT 'new',
+                    qualification_score INTEGER DEFAULT 0,
+                    meeting_date TEXT,
+                    meeting_link_sent BOOLEAN DEFAULT FALSE,
+                    brevo_contact_id TEXT,
+                    conversation_history TEXT DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+        else:
+            # Agregar nuevas columnas si no existen
+            try:
+                cursor.execute('ALTER TABLE prospects ADD COLUMN notes TEXT')
+            except sqlite3.OperationalError:
+                pass  # La columna ya existe
+            
+            try:
+                cursor.execute('ALTER TABLE prospects ADD COLUMN meeting_link_sent BOOLEAN DEFAULT FALSE')
+            except sqlite3.OperationalError:
+                pass  # La columna ya existe
         
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS conversations (
@@ -80,13 +102,13 @@ class ProspectDatabase:
         cursor = conn.cursor()
         
         cursor.execute('''
-            INSERT INTO prospects (name, company, budget, location, industry, status, 
-                                 qualification_score, meeting_date, brevo_contact_id, conversation_history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO prospects (name, company, budget, location, industry, notes, status, 
+                                 qualification_score, meeting_date, meeting_link_sent, brevo_contact_id, conversation_history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             prospect.name, prospect.company, prospect.budget, prospect.location,
-            prospect.industry, prospect.status, prospect.qualification_score,
-            prospect.meeting_date, prospect.brevo_contact_id, prospect.conversation_history
+            prospect.industry, prospect.notes, prospect.status, prospect.qualification_score,
+            prospect.meeting_date, prospect.meeting_link_sent, prospect.brevo_contact_id, prospect.conversation_history
         ))
         
         prospect_id = cursor.lastrowid
@@ -106,10 +128,10 @@ class ProspectDatabase:
         if row:
             return Prospect(
                 id=row[0], name=row[1], company=row[2], budget=row[3],
-                location=row[4], industry=row[5], status=row[6],
-                qualification_score=row[7], meeting_date=row[8],
-                brevo_contact_id=row[9], conversation_history=row[10],
-                created_at=row[11], updated_at=row[12]
+                location=row[4], industry=row[5], notes=row[6], status=row[7],
+                qualification_score=row[8], meeting_date=row[9],
+                meeting_link_sent=row[10], brevo_contact_id=row[11], 
+                conversation_history=row[12], created_at=row[13], updated_at=row[14]
             )
         return None
     
@@ -120,15 +142,15 @@ class ProspectDatabase:
         
         cursor.execute('''
             UPDATE prospects 
-            SET name=?, company=?, budget=?, location=?, industry=?, status=?,
-                qualification_score=?, meeting_date=?, brevo_contact_id=?, 
+            SET name=?, company=?, budget=?, location=?, industry=?, notes=?, status=?,
+                qualification_score=?, meeting_date=?, meeting_link_sent=?, brevo_contact_id=?, 
                 conversation_history=?, updated_at=CURRENT_TIMESTAMP
             WHERE id=?
         ''', (
             prospect.name, prospect.company, prospect.budget, prospect.location,
-            prospect.industry, prospect.status, prospect.qualification_score,
-            prospect.meeting_date, prospect.brevo_contact_id, prospect.conversation_history,
-            prospect.id
+            prospect.industry, prospect.notes, prospect.status, prospect.qualification_score,
+            prospect.meeting_date, prospect.meeting_link_sent, prospect.brevo_contact_id, 
+            prospect.conversation_history, prospect.id
         ))
         
         success = cursor.rowcount > 0
