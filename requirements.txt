@@ -14,3 +14,5 @@ langchain_chroma
 langchain[docarray]
 datasets
 chromadb
+langfuse>=2.0.0
+langfuse[langchain]>=2.0.0
