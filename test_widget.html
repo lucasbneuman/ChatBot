@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Widget Lucas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        .instructions {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Test del Widget Lucas</h1>
+        
+        <div class="status">
+            <h3>Estado del Servidor:</h3>
+            <p id="server-status">Verificando conexión...</p>
+        </div>
+        
+        <div class="instructions">
+            <h3>📝 Instrucciones de Prueba:</h3>
+            <ol>
+                <li>Asegúrate que el servidor esté corriendo: <code>python server_widget.py</code></li>
+                <li>Mira la esquina inferior derecha - debería aparecer un botón azul</li>
+                <li>Haz clic en el botón para abrir el chat</li>
+                <li>Prueba enviando mensajes como:
+                    <ul>
+                        <li>"Hola, ¿qué servicios ofreces?"</li>
+                        <li>"Soy dueño de una empresa de retail y necesito ayuda con IA"</li>
+                        <li>"Me llamo Juan, tengo una empresa llamada TechCorp en el sector tecnología"</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+        
+        <h2>🔗 Enlaces Útiles:</h2>
+        <ul>
+            <li><a href="http://localhost:8002" target="_blank">API Principal</a></li>
+            <li><a href="http://localhost:8002/api/" target="_blank">Widget API</a></li>
+            <li><a href="http://localhost:7864" target="_blank">Dashboard Admin (Gradio)</a></li>
+            <li><a href="http://localhost:8002/widget/embed" target="_blank">Código WordPress</a></li>
+        </ul>
+        
+        <h2>💬 El Widget debería aparecer aquí ➡️</h2>
+        <p>Si no ves el botón flotante azul en la esquina inferior derecha, revisa que el servidor esté corriendo.</p>
+    </div>
+
+    <!-- Widget Configuration -->
+    <script>
+        window.LUCAS_WIDGET_CONFIG = {
+            apiUrl: 'http://localhost:8002/api',
+            position: 'bottom-right',
+            autoOpen: false,
+            theme: 'blue'
+        };
+
+        // Verificar conexión con el servidor
+        function checkServerConnection() {
+            fetch('http://localhost:8002/api/')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('server-status').innerHTML = 
+                        `✅ <strong>Conectado</strong><br>` +
+                        `Versión: ${data.version}<br>` +
+                        `Agente: ${data.agent_active ? 'Activo' : 'Inactivo'}`;
+                })
+                .catch(error => {
+                    document.getElementById('server-status').innerHTML = 
+                        `❌ <strong>Desconectado</strong><br>` +
+                        `Error: ${error.message}<br>` +
+                        `Ejecuta: <code>python server_widget.py</code>`;
+                });
+        }
+
+        // Verificar conexión al cargar
+        checkServerConnection();
+        
+        // Verificar cada 10 segundos
+        setInterval(checkServerConnection, 10000);
+    </script>
+
+    <!-- Lucas Chat Widget -->
+    <script src="http://localhost:8002/static/widget/lucas-chat-widget.js" 
+            data-api-url="http://localhost:8002/api"
+            data-position="bottom-right"
+            data-auto-open="false">
+    </script>
+</body>
+</html>

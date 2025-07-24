@@ -8,7 +8,14 @@
       "Bash(mv:*)",
       "Bash(ls:*)",
       "Bash(set PYTHONIOENCODING=utf-8)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git push:*)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(curl:*)",
+      "Bash(start demo_widget.html)",
+      "Bash(explorer:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

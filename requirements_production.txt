@@ -1,14 +1,26 @@
-# Requirements para producción
+# Dependencias optimizadas para producción - Lucas Benites Multi-Channel Server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
 gradio==4.44.0
 openai==1.51.0
+pydantic==2.5.0
 python-dotenv==1.0.0
+requests==2.31.0
+
+# LangChain ecosystem
 langchain==0.3.0
 langchain-openai==0.2.0
 langchain-community==0.3.0
-faiss-cpu==1.8.0
-pydantic==2.5.0
-requests==2.31.0
-sqlite3  # Built-in Python
-numpy==1.24.3
-pandas==2.0.3
-PyYAML==6.0.1
+langchain-text-splitters
+
+# Vector search y RAG
+faiss-cpu
+tiktoken
+numpy
+
+# Utilidades web
+python-multipart==0.0.6
+httpx==0.25.2
+
+# Data processing
+pypdf
