@@ -101,8 +101,15 @@ def create_production_server():
 def run_gradio_server():
     """Ejecuta el servidor Gradio si está habilitado"""
     try:
-        # Solo ejecutar Gradio en desarrollo o si está habilitado
+        # Solo ejecutar Gradio si está habilitado y hay suficiente memoria
         if os.getenv("ENABLE_GRADIO", "false").lower() == "true":
+            print("Intentando iniciar Dashboard Admin (Gradio)...")
+            
+            # Verificar si es Render (limitaciones de memoria)
+            if os.getenv("RENDER", "false").lower() == "true":
+                print("Render detectado - Gradio deshabilitado por limitaciones de memoria")
+                return
+            
             import gradio as gr
             from main import create_gradio_interface
             
@@ -123,6 +130,7 @@ def run_gradio_server():
             
     except Exception as e:
         print(f"ERROR iniciando Gradio: {e}")
+        print("Continuando sin Dashboard Admin...")
 
 def main():
     """Función principal del servidor de producción"""
