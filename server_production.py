@@ -101,7 +101,7 @@ def create_production_server():
 def run_gradio_server():
     """Ejecuta el servidor Gradio si está habilitado"""
     try:
-        # Solo ejecutar Gradio si está habilitado y hay suficiente memoria
+        # Solo ejecutar Gradio si está habilitado y no es Render
         if os.getenv("ENABLE_GRADIO", "false").lower() == "true":
             print("Intentando iniciar Dashboard Admin (Gradio)...")
             
@@ -110,27 +110,35 @@ def run_gradio_server():
                 print("Render detectado - Gradio deshabilitado por limitaciones de memoria")
                 return
             
-            import gradio as gr
-            from main import create_gradio_interface
-            
-            gradio_port = int(os.getenv("GRADIO_PORT", "7860"))
-            print(f"Iniciando Dashboard Admin (Gradio) en puerto {gradio_port}...")
-            
-            demo = create_gradio_interface()
-            demo.launch(
-                server_name="0.0.0.0",
-                server_port=gradio_port,
-                share=False,
-                debug=False,
-                show_api=False,
-                quiet=True
-            )
+            # Intentar importar Gradio y crear interfaz
+            try:
+                import gradio as gr
+                from main import create_gradio_interface
+                
+                gradio_port = int(os.getenv("GRADIO_PORT", "7860"))
+                print(f"Iniciando Dashboard Admin (Gradio) en puerto {gradio_port}...")
+                
+                demo = create_gradio_interface()
+                demo.launch(
+                    server_name="0.0.0.0",
+                    server_port=gradio_port,
+                    share=False,
+                    debug=False,
+                    show_api=False,
+                    quiet=True
+                )
+            except ImportError as ie:
+                print(f"Gradio no disponible: {ie}")
+                print("Continuando solo con Widget API...")
+            except Exception as ge:
+                print(f"Error específico de Gradio: {ge}")
+                print("Continuando solo con Widget API...")
         else:
             print("Gradio deshabilitado en producción (ENABLE_GRADIO=false)")
             
     except Exception as e:
-        print(f"ERROR iniciando Gradio: {e}")
-        print("Continuando sin Dashboard Admin...")
+        print(f"ERROR general iniciando Gradio: {e}")
+        print("El servidor continuará funcionando solo con Widget API")
 
 def main():
     """Función principal del servidor de producción"""

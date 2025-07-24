@@ -3,13 +3,15 @@ services:
     name: lucas-widget-api
     env: python
     plan: free
-    buildCommand: pip install -r requirements_production.txt
+    buildCommand: pip install --upgrade pip && pip install -r requirements_production.txt
     startCommand: python server_production.py
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11.9
       - key: ENABLE_GRADIO
-        value: false  # Deshabilitado en plan gratuito por memoria
+        value: false
       - key: HOST
         value: 0.0.0.0
+      - key: RENDER
+        value: true
     healthCheckPath: /health

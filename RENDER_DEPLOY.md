@@ -22,7 +22,7 @@ git push origin main
 ```
 Name: lucas-benites-widget
 Runtime: Python 3
-Build Command: pip install -r requirements_production.txt
+Build Command: pip install --upgrade pip && pip install -r requirements_production.txt
 Start Command: python server_production.py
 ```
 
@@ -34,8 +34,8 @@ OPENAI_API_KEY=sk-tu-clave-openai-aqui
 BREVO_API_KEY=xkeysib-tu-clave-brevo-aqui
 ENABLE_GRADIO=false
 RENDER=true
-PORT=10000
-HOST=0.0.0.0
+PYTHON_VERSION=3.11.9
+WIDGET_BASE_URL=https://tu-app-name.onrender.com
 ```
 
 **⚠️ IMPORTANTE**: 
