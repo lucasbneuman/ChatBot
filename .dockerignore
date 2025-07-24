@@ -1,0 +1,41 @@
+# Docker ignore
+.git
+.gitignore
+.env
+.env.example
+README.md
+Dockerfile
+.dockerignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+node_modules
+.npm
+.pytest_cache
+.coverage
+*.log
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Archivos de desarrollo
+test_*.py
+*_test.py
+test/
+tests/
+.langgraph_api/
+studio_graph.py
+main.py
+main_supervisor.py
+quick_start.py
+fix_database.py
+
+# Base de datos de desarrollo
+*.db
+!prospects_production.db

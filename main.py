@@ -1,21 +1,27 @@
-# agents/main.py - UI SIMPLIFICADA
+# agents/main_unified.py - AGENTE ÚNICO INTELIGENTE
 import os
 import gradio as gr
 import uuid
 from dotenv import load_dotenv
-from app.agents.prospecting_agent import ProspectingAgent
-from app.database.prospect_db import ProspectDatabase
+from app.agents.unified_agent import UnifiedAgent
+from app.database.prospect_db_fixed import ProspectDatabaseFixed
 
 # Cargar variables de entorno
 load_dotenv()
 
-# Inicializar agente
-agent = ProspectingAgent(
+# Inicializar agente único
+print("Inicializando AGENTE UNICO INTELIGENTE...")
+agent = UnifiedAgent(
     openai_api_key=os.getenv("OPENAI_API_KEY"),
-    db_path="prospects.db"
+    db_path="prospects_production.db"
 )
 
-db = ProspectDatabase("prospects.db")
+print("Agente unico inicializado correctamente")
+print(f"RAG system: {'ACTIVO' if agent.rag_system else 'INACTIVO'}")
+print(f"Brevo integration: {'ACTIVO' if agent.brevo_sync else 'INACTIVO'}")
+print(f"Base de datos: prospects_production.db")
+
+db = ProspectDatabaseFixed("prospects_production.db")
 
 # Diccionario para mantener prospect_ids por sesión
 session_prospects = {}
@@ -28,26 +34,31 @@ def get_session_id(request: gr.Request = None) -> str:
         return str(uuid.uuid4())
 
 def chat_interface(message, history, request: gr.Request = None):
-    """Interfaz de chat para Gradio - MULTI-USUARIO"""
+    """Interfaz de chat simplificada con agente único"""
     session_id = get_session_id(request)
     
-    print(f"🎯 DEBUG chat_interface - session_id: {session_id}")
+    print(f"DEBUG - Sesion: {session_id[:8]}... | Mensaje: {message[:50]}...")
     
-    # Obtener prospect_id para esta sesión específica
+    # Obtener prospect_id para esta sesión
     current_prospect_id = session_prospects.get(session_id)
-    print(f"🎯 DEBUG - current_prospect_id para sesión {session_id}: {current_prospect_id}")
     
     if not message.strip():
         return history
     
-    # Procesar mensaje con el agente
+    # Procesar mensaje con el AGENTE ÚNICO
     result = agent.process_message(message, current_prospect_id)
     
     # Actualizar prospect_id para esta sesión si es nuevo
     if not current_prospect_id:
         current_prospect_id = result.get("prospect_id")
         session_prospects[session_id] = current_prospect_id
-        print(f"🆕 DEBUG - Nuevo prospect_id {current_prospect_id} asignado a sesión {session_id}")
+        print(f"Nuevo prospect_id {current_prospect_id} para sesion {session_id[:8]}...")
+    
+    # Debug información
+    print(f"Intencion: {result.get('intent')}")
+    print(f"RAG usado: {result.get('rag_used', False)}")
+    print(f"Datos extraidos: {result.get('data_extracted', False)}")
+    print(f"Meeting link: {result.get('meeting_link_sent', False)}")
     
     # Obtener respuesta
     response = result.get("response", "Lo siento, no pude procesar tu mensaje.")
@@ -59,169 +70,164 @@ def chat_interface(message, history, request: gr.Request = None):
     return history
 
 def get_prospect_info(request: gr.Request = None):
-    """Obtiene información del prospecto actual - MULTI-USUARIO"""
+    """Obtiene información del prospecto actual"""
     session_id = get_session_id(request)
     current_prospect_id = session_prospects.get(session_id)
     
-    print(f"🔍 DEBUG get_prospect_info - session_id: {session_id}, prospect_id: {current_prospect_id}")
+    print(f"DEBUG - Obteniendo info para sesion: {session_id[:8]}...")
     
     if not current_prospect_id:
-        return "No hay conversación activa para esta sesión"
+        return "No hay conversacion activa para esta sesion"
     
     try:
         summary = agent.get_prospect_summary(current_prospect_id)
-        print(f"📊 DEBUG - Summary recibido: {summary}")
         
         if not summary or "error" in summary:
             error_msg = summary.get("error", "Unknown error") if summary else "No summary returned"
-            return f"❌ Error: {error_msg}"
+            return f"Error: {error_msg}"
         
         prospect = summary["prospect"]
         
-        # MANEJO ROBUSTO DE VALORES
+        # Función helper para valores seguros
         def safe_get(key, default="No proporcionado"):
             value = prospect.get(key)
             return value if value else default
         
-        # Manejo especial del score
-        score_raw = prospect.get('qualification_score')
-        if score_raw is None:
-            score = 0
-        elif isinstance(score_raw, str):
-            try:
-                score = int(float(score_raw))
-            except:
-                score = 0
-        else:
-            score = int(score_raw)
+        # Manejo del score
+        score_raw = prospect.get('qualification_score', 0)
+        score = int(score_raw) if score_raw else 0
         
+        # Datos básicos
         name = safe_get('name')
         company = safe_get('company')
+        email = safe_get('email')
         budget = safe_get('budget')
         location = safe_get('location')
         industry = safe_get('industry')
         status = safe_get('status', 'nuevo')
         notes = safe_get('notes', 'Sin notas')
         
-        meeting_sent = prospect.get('meeting_link_sent')
-        meeting_status = "✅ Enviado" if meeting_sent else "❌ Pendiente"
+        meeting_sent = prospect.get('meeting_link_sent', False)
+        meeting_status = "Enviado" if meeting_sent else "Pendiente"
         
-        # MEJORAR NOTAS CON IA SI HAY SUFICIENTE INFORMACIÓN
-        if len(str(notes)) > 100 and notes != 'Sin notas':
-            try:
-                improved_notes = agent.response_gen.improve_notes_with_ai(notes)
-                if improved_notes and improved_notes != notes:
-                    notes = improved_notes
-                    # Actualizar las notas mejoradas en la base de datos
-                    prospect_obj = agent.db.get_prospect(current_prospect_id)
-                    if prospect_obj:
-                        prospect_obj.notes = improved_notes
-                        agent.db.update_prospect(prospect_obj)
-                        print(f"📝 Notas mejoradas y guardadas para prospect {current_prospect_id}")
-            except Exception as e:
-                print(f"❌ Error mejorando notas: {e}")
+        # Calificación basada en score
+        if score >= 65:
+            qualification = "CALIFICADO - Listo para charla con Lucas"
+        elif score >= 50:
+            qualification = "INTERES MODERADO - Necesita mas informacion" 
+        elif score >= 30:
+            qualification = "POCO INTERES - Seguir nutriendo"
+        else:
+            qualification = "NO CALIFICADO - Considerar descarte"
         
-        info = f"""**Información del Prospecto:**
+        info = f"""INFORMACION DEL PROSPECTO (AGENTE UNICO)
 
-🆔 **ID:** {prospect.get('id', 'N/A')} | 🔑 **Sesión:** {session_id[:8]}...
-👤 **Nombre:** {name}
-🏢 **Empresa:** {company}
-💰 **Presupuesto:** {budget}
-📍 **Ubicación:** {location}
-🏭 **Industria:** {industry}
-📊 **Score:** {score}/100
-⚡ **Estado:** {status}
-🔗 **Link Reunión:** {meeting_status}
+ID: {prospect.get('id', 'N/A')} | Sesion: {session_id[:8]}...
+Nombre: {name}
+Empresa: {company}
+Email: {email}
+Presupuesto: {budget}
+Ubicacion: {location}
+Industria: {industry}
+Score: {score}/100
+Estado: {status}
+Link Reunion: {meeting_status}
 
-**Notas:**
+Calificacion:
+{qualification}
+
+Notas:
 {notes}
 
 ---
 
-**Resumen de Calificación:**
-{summary.get('qualification_summary', 'No disponible')}
-
-**Total Conversaciones:** {summary.get('conversation_count', 0)}
+Estadisticas:
+- Conversaciones: {summary.get('conversation_count', 0)}
+- Arquitectura: AGENTE UNICO
+- Deteccion Inteligente: ACTIVA
+- RAG System: {'ACTIVO' if agent.rag_system else 'INACTIVO'}
+- Brevo Integration: {'ACTIVO' if agent.brevo_sync else 'INACTIVO'}
 """
         
         return info
         
     except Exception as e:
-        print(f"❌ ERROR en get_prospect_info: {e}")
-        return f"❌ Error al obtener información: {str(e)}"
+        print(f"ERROR en get_prospect_info: {e}")
+        return f"Error al obtener informacion: {str(e)}"
 
 def reset_conversation(request: gr.Request = None):
-    """Reinicia la conversación - MULTI-USUARIO"""
+    """Reinicia la conversación"""
     session_id = get_session_id(request)
     
-    # Limpiar el prospect_id para esta sesión
     if session_id in session_prospects:
         del session_prospects[session_id]
     
-    return [], "No hay conversación activa para esta sesión"
+    return [], "No hay conversacion activa para esta sesion"
 
 def create_gradio_interface():
-    """Crea la interfaz de Gradio simplificada"""
+    """Crea la interfaz de Gradio optimizada"""
     
-    with gr.Blocks(title="Chatbot de Prospección - Lucas Benites", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Agente Unico de Lucas Benites", theme=gr.themes.Soft()) as demo:
         gr.Markdown("""
-        # 🤖 Asistente de Prospección - Lucas Benites
-        
-        **Ayudo a dueños de PyMEs a automatizar sus negocios con IA**
+        # Agente de Lucas Benites
+        **Version Unificada - Inteligencia Artificial Optimizada**
         """)
         
         with gr.Row():
             with gr.Column(scale=2):
                 chatbot = gr.Chatbot(
-                    label="Conversación",
+                    label="Conversacion Inteligente",
                     height=500,
                     show_label=True,
                     type="messages",
-                    placeholder="¡Hola! Soy el asistente de Lucas. ¿En qué puedo ayudarte con tu negocio hoy?"
+                    placeholder="Hola! Soy el asistente inteligente de Lucas. Puedo responder tus preguntas sobre la empresa Y ayudarte con tu negocio de forma natural. En que puedo ayudarte?"
                 )
                 
                 with gr.Row():
                     msg = gr.Textbox(
                         label="Tu mensaje",
-                        placeholder="Escribe aquí cómo puedo ayudarte...",
+                        placeholder="Preguntame lo que necesites...",
                         scale=4
                     )
                     send_btn = gr.Button("Enviar", scale=1, variant="primary")
                 
                 with gr.Row():
-                    clear_btn = gr.Button("🔄 Nueva Conversación", variant="secondary")
+                    clear_btn = gr.Button("Nueva Conversacion", variant="secondary")
             
             with gr.Column(scale=1):
-                gr.Markdown("### 📊 Información del Prospecto")
+                gr.Markdown("**Dashboard del Prospecto**")
                 
                 prospect_info = gr.Textbox(
-                    label="Datos del Lead",
-                    lines=20,
+                    label="Informacion del Lead",
+                    lines=25,
                     interactive=False,
                     show_label=False
                 )
                 
-                refresh_btn = gr.Button("🔄 Actualizar Info", variant="secondary")
+                refresh_btn = gr.Button("Actualizar Info", variant="secondary")
                 
                 gr.Markdown("""
-                ### 🎯 Sobre Lucas Benites
+                **Caracteristicas del Agente Unico:**
                 
-                **Especialista en IA para PyMEs:**
-                - 🤖 Chatbots que atienden clientes 24/7
-                - ⚡ Automatización de procesos repetitivos  
-                - 🧠 IA personalizada para cada negocio
-                - 📊 Herramientas que ahorran tiempo y dinero
+                - **Deteccion Inteligente**: Identifica automaticamente si preguntas por informacion o hablas de tu negocio
                 
-                **🔗 Agenda tu charla:** https://meet.brevo.com/lucas-benites
+                - **RAG Integrado**: Acceso directo a informacion actualizada de Lucas
                 
-                ### 📈 Cómo funciona el scoring:
-                - **65+ puntos:** Listo para charla con Lucas
-                - **50-64 puntos:** Interés moderado
-                - **30-49 puntos:** Poco interés
-                - **<30 puntos:** Sin interés
+                - **Prospeccion Natural**: Recopila datos sin interrumpir el flujo de conversacion
+                
+                - **Respuestas Coherentes**: Una sola fuente de verdad, sin conflictos entre agentes
+                
+                - **Brevo Automatico**: Sincronizacion inteligente cuando corresponde
+                
+                ---
+                
+                **Contacto Directo:**
+                - Email: lucas@lucasbenites.com
+                - WhatsApp: +54 3517554495
+                - Calendario: https://meet.brevo.com/lucas-benites
                 """)
         
-        # Event handlers simplificados
+        # Event handlers
         def respond(message, history, request: gr.Request = None):
             return chat_interface(message, history, request)
         
@@ -249,13 +255,15 @@ def create_gradio_interface():
     return demo
 
 if __name__ == "__main__":
+    print("Lanzando interfaz del Agente Unico...")
+    
     # Crear interfaz
     demo = create_gradio_interface()
     
     # Lanzar aplicación
     demo.launch(
         server_name="127.0.0.1",
-        server_port=7860,
+        server_port=7862,
         share=True,
         debug=True
     )

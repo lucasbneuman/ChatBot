@@ -1,0 +1,27 @@
+version: "1.0"
+project: "prospecting_agent"
+default_language: "es"
+langraph_studio:
+  enabled: true
+  visibility: true
+  
+prompts:
+  intent_classifier:
+    file: "intent_classifier.yaml"
+    enabled: true
+    version: "1.0"
+  
+  entity_extractor:
+    file: "entity_extractor.yaml"
+    enabled: true
+    version: "1.0"
+    
+  response_generator:
+    file: "response_generator.yaml"
+    enabled: true
+    version: "1.0"
+
+settings:
+  hot_reload: true
+  validate_schema: true
+  cache_prompts: true

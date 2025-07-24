@@ -249,4 +249,35 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,python
 
-# LangGraph
+# LangGraph y aplicación específica
+.langgraph_api/
+*.pckl
+*.pkl
+
+# Bases de datos (mantener solo producción)
+*.db
+!prospects_production.db
+
+# Documentos con información personal real  
+resources/company_docs/informacion_empresa.txt
+
+# API Keys y secretos
+.env.local
+.env.production
+.env.staging
+
+# Gradio
+gradio_cached_examples/
+flagged/
+
+# Claude
+.claude/
+
+# Archivos temporales y testing
+test_*.py
+*_test.py
+*_old.py
+*_backup.py
+
+# Logs de la aplicación
+*.log

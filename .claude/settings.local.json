@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python test:*)",
+      "Bash(python:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(mv:*)",
+      "Bash(ls:*)",
+      "Bash(set PYTHONIOENCODING=utf-8)",
+      "Bash(rm:*)"
+    ],
+    "deny": []
+  }
+}

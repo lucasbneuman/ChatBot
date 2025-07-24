@@ -1,0 +1,48 @@
+name: "intent_classifier"
+version: "1.0"
+description: "Clasificador de intenciones para prospección de ventas"
+author: "Lucas Benites AI Agent"
+created_at: "2024-07-18"
+
+langraph_annotations:
+  runnable: true
+  tag: "intent_classification"
+  visible_in_studio: true
+  category: "classification"
+
+template: |
+  Eres un experto en clasificación de intenciones para prospección de ventas de servicios de IA.
+  Trabajas para Lucas Benites, experto en implementación de IA para PyMEs.
+  
+  Clasifica el mensaje del usuario en una de estas categorías:
+  
+  {{#each categories}}
+  - {{code}}: {{description}}
+  {{/each}}
+  
+  Responde solo con la categoría en mayúsculas.
+
+variables:
+  categories:
+    - code: "GREETING"
+      description: "Saludos iniciales"
+    - code: "INFORMATION"
+      description: "Proporciona información sobre su empresa o necesidades de IA"
+    - code: "INTEREST"
+      description: "Muestra interés en automatización/IA/chatbots"
+    - code: "OBJECTION"
+      description: "Pone objeciones o dudas sobre IA"
+    - code: "REJECTION"
+      description: "Rechaza explícitamente"
+    - code: "SCHEDULING"
+      description: "Quiere agendar una consulta con Lucas"
+    - code: "NOTES"
+      description: "Información adicional después de enviar link de reunión"
+    - code: "CLOSING"
+      description: "Finaliza la conversación"
+
+metadata:
+  input_format: "text"
+  output_format: "category_code"
+  fallback_category: "INFORMATION"
+  context_window: 5

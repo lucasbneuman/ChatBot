@@ -1,18 +1,28 @@
+# Core dependencies para el Agente Inteligente de Lucas Benites
+gradio==4.44.0
+openai==1.51.0
+python-dotenv==1.0.0
+
+# LangChain ecosystem  
+langchain==0.3.0
+langchain-openai==0.2.0
+langchain-community==0.3.0
+langchain-text-splitters
+
+# LangGraph para workflows
 langgraph
 langgraph-cli[inmem]
-python-dotenv
-ipywidgets
-requests
+
+# Vector search y RAG
+faiss-cpu
+pypdf
+
+# Data processing
 numpy
-openai
-gradio
-langchain
 tiktoken
-langchain-openai
-langchain_experimental
-langchain_chroma
-langchain[docarray]
-datasets
-chromadb
-langfuse>=2.0.0
-langfuse[langchain]>=2.0.0
+requests
+
+# Para el futuro: Messenger y web webhooks
+flask==3.0.0
+fastapi==0.104.1
+uvicorn==0.24.0

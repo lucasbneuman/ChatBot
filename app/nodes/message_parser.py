@@ -4,6 +4,7 @@ from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 import re
 import json
+from ..core.prompt_manager import get_prompt
 
 class MessageParser:
     def __init__(self, llm: ChatOpenAI):
@@ -12,23 +13,7 @@ class MessageParser:
     def classify_intent(self, message: str, conversation_history: List[Dict]) -> str:
         """Clasifica la intención del mensaje"""
         
-        system_prompt = """
-        Eres un experto en clasificación de intenciones para prospección de ventas de servicios de IA..
-        Trabajas para Lucas Benites, experto en implementación de IA para PyMEs.
-        
-        Clasifica el mensaje del usuario en una de estas categorías:
-        
-        - GREETING: Saludos iniciales
-        - INFORMATION: Proporciona información sobre su empresa o necesidades de IA
-        - INTEREST: Muestra interés en automatización/IA/chatbots
-        - OBJECTION: Pone objeciones o dudas sobre IA
-        - REJECTION: Rechaza explícitamente
-        - SCHEDULING: Quiere agendar una consulta con Lucas
-        - NOTES: Información adicional después de enviar link de reunión
-        - CLOSING: Finaliza la conversación
-        
-        Responde solo con la categoría en mayúsculas.
-        """
+        system_prompt = get_prompt('intent_classifier')
         
         context = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in conversation_history[-5:]])
         
@@ -71,46 +56,14 @@ class MessageParser:
             if value:
                 final_result[key] = value
         
-        # Debug: Imprimir lo que se extrajo
-        print(f"🔍 DEBUG - Mensaje: {message}")
-        print(f"📊 DEBUG - Extraído: {final_result}")
+        # Combinar resultados de todos los métodos
         
         return final_result
     
     def _extract_with_llm(self, message: str, context: str) -> Dict[str, Any]:
         """Extracción con LLM mejorada"""
         
-        system_prompt = """
-        Eres un experto extractor de información. Analiza el mensaje y extrae TODA la información posible.
-        
-        REGLAS CRÍTICAS:
-        1. Si dice "Soy [nombre]" → name: "[nombre]"
-        2. Si menciona "empresa de [tipo]" → industry: "[tipo]", company: "Empresa de [tipo]"
-        3. Si dice "mi empresa" o "mi negocio" → inferir company y/o industry
-        4. Si menciona problemas → pain_points: ["problema"]
-        5. Si quiere chatbot/automatización → needs: "automatización"
-        6. Si menciona WhatsApp/Instagram → notes: "Canal: [plataforma]"
-        
-        EJEMPLOS ESPECÍFICOS:
-        - "Soy Agustín" → {"name": "Agustín"}
-        - "empresa de autopartes" → {"industry": "autopartes", "company": "Empresa de autopartes"}
-        - "chatbot en whatsapp" → {"needs": "chatbot WhatsApp", "notes": "Canal: WhatsApp"}
-        - "me preguntan por precios" → {"pain_points": ["consultas repetitivas de precios"]}
-        
-        Devuelve JSON válido. NO uses null, usa cadenas vacías o arrays vacíos.
-        
-        {
-            "name": "",
-            "company": "",
-            "industry": "",
-            "budget": "",
-            "location": "",
-            "pain_points": [],
-            "needs": "",
-            "notes": "",
-            "decision_maker": false
-        }
-        """
+        system_prompt = get_prompt('entity_extractor')
         
         full_context = f"Contexto: {context}\n\nMensaje a analizar: {message}"
         
@@ -137,7 +90,6 @@ class MessageParser:
             return cleaned_result
             
         except Exception as e:
-            print(f"Error en LLM extraction: {e}")
             return {}
     
     def _extract_with_regex(self, message: str) -> Dict[str, Any]:

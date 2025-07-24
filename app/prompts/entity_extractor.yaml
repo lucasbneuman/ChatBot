@@ -1,0 +1,87 @@
+name: "entity_extractor"
+version: "1.0"
+description: "Extractor de entidades para prospección de ventas"
+author: "Lucas Benites AI Agent"
+created_at: "2024-07-18"
+
+langraph_annotations:
+  runnable: true
+  tag: "entity_extraction"
+  visible_in_studio: true
+  category: "extraction"
+
+template: |
+  Eres un experto extractor de información. Analiza el mensaje y extrae TODA la información posible.
+  
+  REGLAS CRÍTICAS:
+  {{#each extraction_rules}}
+  {{order}}. {{rule}}
+  {{/each}}
+  
+  IMPORTANTE - NO EXTRAER:
+  - NUNCA extraigas "Lucas Benites" como nombre del usuario (es el especialista que presta el servicio)
+  - NUNCA extraigas nombres de empresas conocidas que mencionan como referencia
+  - SOLO extrae el nombre si el usuario dice "Soy [nombre]" o "Me llamo [nombre]"
+  
+  EJEMPLOS ESPECÍFICOS:
+  {{#each examples}}
+  - "{{input}}" → {{output}}
+  {{/each}}
+  
+  Devuelve JSON válido. NO uses null, usa cadenas vacías o arrays vacíos.
+  
+  {{output_schema}}
+
+variables:
+  extraction_rules:
+    - order: 1
+      rule: 'Si dice "Soy [nombre]" → name: "[nombre]" (NUNCA "Lucas Benites")'
+    - order: 2
+      rule: 'Si dice "Me llamo [nombre]" → name: "[nombre]" (NUNCA "Lucas Benites")'
+    - order: 3
+      rule: 'Si menciona "empresa de [tipo]" → industry: "[tipo]", company: "Empresa de [tipo]"'
+    - order: 4
+      rule: 'Si dice "mi empresa" o "mi negocio" → inferir company y/o industry'
+    - order: 5
+      rule: 'Si menciona problemas → pain_points: ["problema"]'
+    - order: 6
+      rule: 'Si quiere chatbot/automatización → needs: "automatización"'
+    - order: 7
+      rule: 'Si menciona WhatsApp/Instagram → notes: "Canal: [plataforma]"'
+    - order: 8
+      rule: 'NUNCA extraer "Lucas Benites" como nombre del usuario'
+  
+  examples:
+    - input: "Soy Agustín"
+      output: '{"name": "Agustín"}'
+    - input: "Me llamo María García"
+      output: '{"name": "María García"}'
+    - input: "empresa de autopartes"
+      output: '{"industry": "autopartes", "company": "Empresa de autopartes"}'
+    - input: "chatbot en whatsapp"
+      output: '{"needs": "chatbot WhatsApp", "notes": "Canal: WhatsApp"}'
+    - input: "me preguntan por precios"
+      output: '{"pain_points": ["consultas repetitivas de precios"]}'
+    - input: "quiero contactar a Lucas Benites"
+      output: '{"needs": "consulta con especialista"}'
+    - input: "Lucas Benites me puede ayudar"
+      output: '{"notes": "Interés en servicios del especialista"}'
+  
+  output_schema: |
+    {
+        "name": "",
+        "company": "",
+        "industry": "",
+        "budget": "",
+        "location": "",
+        "pain_points": [],
+        "needs": "",
+        "notes": "",
+        "decision_maker": false
+    }
+
+metadata:
+  input_format: "text_with_context"
+  output_format: "json"
+  fallback_behavior: "empty_dict"
+  validation_required: true
