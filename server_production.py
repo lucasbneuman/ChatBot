@@ -99,46 +99,52 @@ def create_production_server():
     return main_app
 
 def run_gradio_server():
-    """Ejecuta el servidor Gradio si está habilitado"""
+    """Ejecuta el servidor Gradio para dashboard admin"""
     try:
-        # Solo ejecutar Gradio si está habilitado y no es Render
-        if os.getenv("ENABLE_GRADIO", "false").lower() == "true":
-            print("Intentando iniciar Dashboard Admin (Gradio)...")
-            
-            # Verificar si es Render (limitaciones de memoria)
-            if os.getenv("RENDER", "false").lower() == "true":
-                print("Render detectado - Gradio deshabilitado por limitaciones de memoria")
-                return
-            
-            # Intentar importar Gradio y crear interfaz
-            try:
-                import gradio as gr
-                from main import create_gradio_interface
-                
-                gradio_port = int(os.getenv("GRADIO_PORT", "7860"))
-                print(f"Iniciando Dashboard Admin (Gradio) en puerto {gradio_port}...")
-                
-                demo = create_gradio_interface()
-                demo.launch(
-                    server_name="0.0.0.0",
-                    server_port=gradio_port,
-                    share=False,
-                    debug=False,
-                    show_api=False,
-                    quiet=True
-                )
-            except ImportError as ie:
-                print(f"Gradio no disponible: {ie}")
-                print("Continuando solo con Widget API...")
-            except Exception as ge:
-                print(f"Error específico de Gradio: {ge}")
-                print("Continuando solo con Widget API...")
-        else:
-            print("Gradio deshabilitado en producción (ENABLE_GRADIO=false)")
-            
+        # Intentar encontrar puerto libre para Gradio
+        gradio_port = find_free_port(7863)
+        if not gradio_port:
+            print("No se pudo encontrar puerto libre para Gradio")
+            return
+        
+        print(f"Iniciando Dashboard Admin (Gradio) en puerto {gradio_port}...")
+        
+        # Importar y crear interfaz Gradio
+        import gradio as gr
+        from main import create_gradio_interface
+        
+        demo = create_gradio_interface()
+        demo.launch(
+            server_name="0.0.0.0",
+            server_port=gradio_port,
+            share=False,
+            debug=False,
+            show_api=False,
+            quiet=True
+        )
+        
+        # Guardar puerto para referencia
+        global gradio_running_port
+        gradio_running_port = gradio_port
+        
     except Exception as e:
-        print(f"ERROR general iniciando Gradio: {e}")
+        print(f"ERROR iniciando Gradio: {e}")
         print("El servidor continuará funcionando solo con Widget API")
+
+def find_free_port(start_port=7863):
+    """Encuentra un puerto libre empezando desde start_port"""
+    import socket
+    for port in range(start_port, start_port + 10):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('127.0.0.1', port))
+                return port
+        except OSError:
+            continue
+    return None
+
+# Variable global para puerto de Gradio
+gradio_running_port = None
 
 def main():
     """Función principal del servidor de producción"""
@@ -160,21 +166,30 @@ def main():
     # Crear app
     app = create_production_server()
     
-    # Iniciar Gradio si está habilitado
-    if os.getenv("ENABLE_GRADIO", "false").lower() == "true":
+    # Iniciar Gradio en hilo separado (solo si no es Render o está habilitado)
+    enable_gradio = os.getenv("ENABLE_GRADIO", "true").lower() == "true"
+    is_render = os.getenv("RENDER", "false").lower() == "true"
+    
+    if enable_gradio and not is_render:
         gradio_thread = threading.Thread(target=run_gradio_server, daemon=True)
         gradio_thread.start()
+        
+        # Esperar un poco para que Gradio se inicie
+        import time
+        time.sleep(3)
     
     print("OK Servicios iniciados:")
     print(f"   Widget API: http://{host}:{port}")
     print(f"   Widget Embed: http://{host}:{port}/widget/embed")
     print(f"   Health Check: http://{host}:{port}/health")
     
-    if os.getenv("ENABLE_GRADIO", "false").lower() == "true":
-        gradio_port = os.getenv("GRADIO_PORT", "7860")
-        print(f"   Admin Dashboard: http://{host}:{gradio_port}")
-    
-    print("\nPara WordPress:")
+    if enable_gradio and not is_render and gradio_running_port:
+        print(f"   Admin Dashboard: http://{host}:{gradio_running_port}")
+    elif is_render:
+        print("   Admin Dashboard: Deshabilitado en Render (memoria limitada)")
+    else:
+        print("   Admin Dashboard: Deshabilitado")
+        
     print(f"   Codigo embed: http://{host}:{port}/widget/embed")
     print()
     
