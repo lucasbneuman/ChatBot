@@ -40,7 +40,11 @@ class ResponseGenerator:
         ]
         
         response = self.llm.invoke(messages)
-        return response.content
+        # Remove "Asistente:" prefix if present
+        content = response.content
+        if content.startswith("Asistente: "):
+            content = content[11:]  # Remove "Asistente: " prefix
+        return content
     
     def _get_system_prompt(self, intent: str, prospect_data: Dict[str, Any], 
                           missing_info: List[str], message_count: int, meeting_link_sent: bool, 

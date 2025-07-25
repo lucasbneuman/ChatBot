@@ -9,7 +9,7 @@ import asyncio
 import threading
 from pathlib import Path
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -59,6 +59,24 @@ def create_production_server():
             "version": "2.0.0",
             "timestamp": asyncio.get_event_loop().time()
         }
+    
+    @main_app.get("/ip")
+    async def get_server_ip(request: Request):
+        """Obtiene la IP del servidor para configurar en Brevo"""
+        import requests
+        try:
+            # Obtener IP pública
+            ip_response = requests.get("https://api.ipify.org", timeout=5)
+            public_ip = ip_response.text
+            
+            return {
+                "public_ip": public_ip,
+                "client_ip": request.client.host,
+                "headers": dict(request.headers),
+                "note": "Agrega la public_ip a las IPs permitidas en Brevo"
+            }
+        except Exception as e:
+            return {"error": str(e)}
     
     @main_app.get("/widget/embed")
     async def widget_embed():

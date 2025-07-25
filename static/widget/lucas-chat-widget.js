@@ -55,11 +55,11 @@ class LucasChatWidget {
     
     getDefaultConfig() {
         return {
-            title: "¡Hola! Soy el asistente de Lucas",
-            subtitle: "¿En qué puedo ayudarte hoy?",
+            title: "🤖 Asistente",
+            subtitle: "Especialista en IA",
             placeholder: "Escribe tu mensaje aquí...",
             theme: {
-                primary_color: "#2563EB",
+                primary_color: "#1E3E62",
                 secondary_color: "#F3F4F6",
                 text_color: "#1F2937",
                 border_radius: "12px"
@@ -172,12 +172,14 @@ class LucasChatWidget {
                     margin: 0;
                     font-size: 16px;
                     font-weight: 600;
+                    color: white;
                 }
                 
                 .chat-header-info p {
                     margin: 4px 0 0 0;
                     font-size: 12px;
                     opacity: 0.9;
+                    color: white;
                 }
                 
                 .chat-controls {

@@ -105,7 +105,7 @@ class UnifiedAgent:
             should_send_link = self._should_send_meeting_link(prospect, message)
             print(f"Should send meeting link: {should_send_link}")
             
-            if should_send_link and not prospect.meeting_link_sent:
+            if should_send_link:
                 print(f"Enviando link de reunion...")
                 meeting_response = self._send_meeting_link(prospect)
                 if meeting_response:
@@ -114,8 +114,6 @@ class UnifiedAgent:
                     print(f"Link de reunion enviado correctamente")
                 else:
                     print(f"Error enviando link de reunion")
-            elif prospect.meeting_link_sent:
-                print(f"Link ya enviado anteriormente")
             else:
                 print(f"Prospect no califica aun para link de reunion")
             
@@ -257,7 +255,11 @@ class UnifiedAgent:
             ]
             
             response = self.llm.invoke(messages)
-            return response.content
+            # Remove "Asistente:" prefix if present
+            content = response.content
+            if content.startswith("Asistente: "):
+                content = content[11:]  # Remove "Asistente: " prefix
+            return content
             
         except Exception as e:
             print(f"Error generando respuesta: {e}")
@@ -358,9 +360,6 @@ REGLAS IMPORTANTES:
         """
         Determina si enviar el link de reunión basado en calificación.
         """
-        if prospect.meeting_link_sent:
-            return False
-        
         # Verificar score de calificación
         if prospect.qualification_score < 65:
             print(f"Score insuficiente: {prospect.qualification_score} < 65")
@@ -389,13 +388,18 @@ REGLAS IMPORTANTES:
             print(f"Email detectado y guardado")
             return True
         
-        # Verificar si ya tiene email guardado
-        if prospect.email:
-            print(f"Prospect ya tiene email: {prospect.email}")
+        # Si ya tiene email guardado y no se ha enviado el link final aún
+        if prospect.email and (not prospect.meeting_link_sent or prospect.status != LeadStatus.MEETING_SENT.value):
+            print(f"Prospect ya tiene email: {prospect.email} - enviando link")
             return True
         
-        # Si está pidiendo explícitamente reunión, solicitar email
-        if is_requesting_meeting:
+        # Si ya se envió el link completo, no enviar más
+        if prospect.meeting_link_sent and prospect.status == LeadStatus.MEETING_SENT.value:
+            print(f"Link ya enviado completamente")
+            return False
+        
+        # Si está pidiendo explícitamente reunión, solicitar email (solo si no se pidió antes)
+        if is_requesting_meeting and not prospect.meeting_link_sent:
             print(f"Solicitando reunion explicitamente - necesita email")
             return True  # Enviará mensaje pidiendo email
         
@@ -403,24 +407,51 @@ REGLAS IMPORTANTES:
         return False
     
     def _contains_email(self, message: str) -> bool:
-        """Detecta si un mensaje contiene un email válido"""
+        """Detecta si un mensaje contiene un email válido del usuario (excluye emails de Lucas)"""
         email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        return bool(re.search(email_pattern, message))
+        emails = re.findall(email_pattern, message)
+        
+        # Emails que NO son del usuario (Lucas y sistema)
+        excluded_emails = [
+            'lucas@lucasbenites.com',
+            'noreply@lucasbenites.com',
+            'admin@lucasbenites.com',
+            'info@lucasbenites.com'
+        ]
+        
+        for email in emails:
+            if email.lower() not in [e.lower() for e in excluded_emails]:
+                return True
+        return False
     
     def _extract_and_save_email(self, message: str, prospect_id: int) -> bool:
-        """Extrae y guarda email del mensaje"""
+        """Extrae y guarda email del mensaje (excluye emails de Lucas)"""
         try:
             email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
             emails = re.findall(email_pattern, message)
             
-            if emails:
-                email = emails[0]
+            # Emails que NO son del usuario (Lucas y sistema)
+            excluded_emails = [
+                'lucas@lucasbenites.com',
+                'noreply@lucasbenites.com',
+                'admin@lucasbenites.com',
+                'info@lucasbenites.com'
+            ]
+            
+            # Filtrar emails válidos del usuario
+            valid_emails = [email for email in emails 
+                          if email.lower() not in [e.lower() for e in excluded_emails]]
+            
+            if valid_emails:
+                email = valid_emails[0]
                 prospect = self.db.get_prospect(prospect_id)
                 if prospect:
                     prospect.email = email
                     self.db.update_prospect(prospect)
                     print(f"Email guardado: {email}")
                     return True
+            else:
+                print(f"No se encontraron emails válidos del usuario en el mensaje")
             return False
         except Exception as e:
             print(f"Error guardando email: {e}")
@@ -431,16 +462,25 @@ REGLAS IMPORTANTES:
         Genera y envía el mensaje con link de reunión o solicita email.
         """
         try:
-            # Si no tiene email, solicitar primero
+            # Si no tiene email, solicitar primero (solo si no se pidió antes)
             if not prospect.email:
-                email_request = f"""¡Perfecto {prospect.name}! 
+                if not prospect.meeting_link_sent:
+                    email_request = f"""¡Perfecto {prospect.name}! 
 
 Por todo lo que me contaste sobre {prospect.company}, estoy convencido de que Lucas te va a poder ayudar mucho.
 
 Para poder coordinar la reunión y que Lucas esté bien preparado, ¿me pasas tu email de contacto?"""
-                
-                print(f"Solicitando email a {prospect.name}")
-                return email_request
+                    
+                    # Marcar que se solicitó el email para la reunión
+                    prospect.meeting_link_sent = True
+                    prospect.status = LeadStatus.EMAIL_REQUESTED.value if hasattr(LeadStatus, 'EMAIL_REQUESTED') else LeadStatus.INTERESTED.value
+                    self.db.update_prospect(prospect)
+                    
+                    print(f"Solicitando email a {prospect.name} - marcado como link solicitado")
+                    return email_request
+                else:
+                    print(f"Email ya solicitado anteriormente a {prospect.name}")
+                    return None
             
             # Si tiene email, enviar link directamente
             prospect_data = prospect.to_dict()
@@ -448,7 +488,7 @@ Para poder coordinar la reunión y que Lucas esté bien preparado, ¿me pasas tu
                 prospect.name, prospect_data
             )
             
-            # Marcar como enviado
+            # Marcar como enviado completamente
             prospect.meeting_link_sent = True
             prospect.status = LeadStatus.MEETING_SENT.value
             self.db.update_prospect(prospect)
