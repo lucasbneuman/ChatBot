@@ -190,11 +190,11 @@ async def get_widget_config():
     return JSONResponse(content={
         "success": True,
         "config": {
-            "title": "¡Hola! Soy el asistente de Lucas",
-            "subtitle": "¿En qué puedo ayudarte hoy?",
+            "title": "🤖 Asistente",
+            "subtitle": "Especialista en IA",
             "placeholder": "Escribe tu mensaje aquí...",
             "theme": {
-                "primary_color": "#2563EB",
+                "primary_color": "#1E3E62",
                 "secondary_color": "#F3F4F6", 
                 "text_color": "#1F2937",
                 "border_radius": "12px"
