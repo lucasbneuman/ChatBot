@@ -87,13 +87,13 @@ class LucasChatWidget {
                 }
                 
                 .lucas-widget.bottom-right {
-                    bottom: 20px;
-                    right: 20px;
+                    bottom: 19px;
+                    right: 19px;
                 }
                 
                 .lucas-widget.bottom-left {
-                    bottom: 20px;
-                    left: 20px;
+                    bottom: 19px;
+                    left: 19px;
                 }
                 
                 .chat-bubble {
