@@ -15,7 +15,19 @@
       "Bash(curl:*)",
       "Bash(start demo_widget.html)",
       "Bash(explorer:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(pip --version)",
+      "Bash(conda info:*)",
+      "Bash(venvScripts:*)",
+      "Bash(.venvScriptsactivate)",
+      "Bash(./venv/Scripts/activate)",
+      "Bash(pip install:*)",
+      "Bash(./venv/Scripts/python.exe -m pip install:*)",
+      "Bash(./venv/Scripts/python.exe -c \"import fastapi, gradio, openai, langchain; print(''✅ Todas las librerías principales importan correctamente'')\")",
+      "Bash(./venv/Scripts/python.exe -c \"import fastapi, gradio, openai, langchain; print(''Todas las librerias principales importan correctamente'')\")",
+      "Bash(./venv/Scripts/python.exe --version)",
+      "Bash(./venv/Scripts/python.exe -c \"import sys; print(''Python Path:'', sys.executable)\")",
+      "Bash(./venv/Scripts/python.exe configure_vscode.py:*)"
     ],
     "deny": []
   }
