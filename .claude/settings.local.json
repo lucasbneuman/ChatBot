@@ -15,7 +15,9 @@
       "Bash(curl:*)",
       "Bash(start demo_widget.html)",
       "Bash(explorer:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(git stash:*)",
+      "Bash(git merge:*)"
     ],
     "deny": []
   }
