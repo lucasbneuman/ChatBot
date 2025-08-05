@@ -1,0 +1,60 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🎛️ Main App (Gradio Dashboard)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "🌐 Widget Server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/server_widget.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "🚀 Production Server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/server_production.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "🧪 Test Supervisor Flow",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/test/test_supervisor_flow.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "🔗 Test Brevo Connection",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_brevo_connection.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}
